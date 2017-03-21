@@ -651,14 +651,6 @@ void Connection::start_tls_write_idle() {
 }
 
 ssize_t Connection::write_tls(const void *data, size_t len) {
-  if (!tls.early_data_finish) {
-    // SSL_read_early_data must be called until we read all early
-    // data.  Calling SSL_write before that is error.  We will start
-    // wlimit in read_tls when all early data have read.
-    wlimit.stopw();
-    return 0;
-  }
-
   // SSL_write requires the same arguments (buf pointer and its
   // length) on SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE.
   // get_write_limit() may return smaller length than previously
@@ -678,7 +670,21 @@ ssize_t Connection::write_tls(const void *data, size_t len) {
 
   tls.last_write_idle = -1.;
 
+#if OPENSSL_1_1_1_API
+  int rv;
+  if (SSL_is_init_finished(tls.ssl)) {
+    rv = SSL_write(tls.ssl, data, len);
+  } else {
+    size_t nwrite;
+    rv = SSL_write_early_data(tls.ssl, data, len, &nwrite);
+    // Use the same semantics with SSL_write.
+    if (rv == 1) {
+      rv = nwrite;
+    }
+  }
+#else  // !OPENSSL_1_1_1_API
   auto rv = SSL_write(tls.ssl, data, len);
+#endif // !OPENSSL_1_1_1_API
 
   if (rv <= 0) {
     auto err = SSL_get_error(tls.ssl, rv);
