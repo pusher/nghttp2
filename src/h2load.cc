@@ -2550,7 +2550,7 @@ int main(int argc, char **argv) {
 
   std::cout << std::endl;
   
-  std::cout << std::fixed << std::setprecision(5)
+  std::cerr << std::fixed << std::setprecision(5)
     << "Running " << size_t(duration.count() / 1000000) << "s test @ " << argv[argc-1] << "\n"
     << "  " << config.nthreads << " threads and " << config.nclients << " connections\n"
     << "  Thread Stats   Avg      Stdev     Max   +/- Stdev\n"
@@ -2559,8 +2559,8 @@ int main(int argc, char **argv) {
     << "  " << stats.req_started << " requests in " << util::format_duration(duration) << ", " << double(stats.bytes_total)/1000 << "KB read\n";
     auto error_count = stats.status[4] + stats.status[5];
     if(error_count)
-      std::cout << "  Non-2xx or 3xx responses: " << error_count << std::endl;
-    std::cout
+      std::cerr << "  Non-2xx or 3xx responses: " << error_count << '\n';
+    std::cerr
       << "Requests/sec:  " << std::setw(8) << rps << '\n'
       << "Transfer/sec:  " << std::setw(8) << double(bps)/1000 << "KB" << '\n'
     ;
