@@ -2550,50 +2550,65 @@ int main(int argc, char **argv) {
         1. - static_cast<double>(stats.bytes_head) / stats.bytes_head_decomp;
   }
 
-  std::cout << std::fixed << std::setprecision(2) << R"(
-finished in )"
-            << util::format_duration(duration) << ", " << rps << " req/s, "
-            << util::utos_funit(bps) << R"(B/s
-requests: )" << stats.req_todo
-            << " total, " << stats.req_started << " started, " << stats.req_done
-            << " done, " << stats.req_status_success << " succeeded, "
-            << stats.req_failed << " failed, " << stats.req_error
-            << " errored, " << stats.req_timedout << R"( timeout
-status codes: )"
-            << stats.status[2] << " 2xx, " << stats.status[3] << " 3xx, "
-            << stats.status[4] << " 4xx, " << stats.status[5] << R"( 5xx
-traffic: )" << util::utos_funit(stats.bytes_total)
-            << "B (" << stats.bytes_total << ") total, "
-            << util::utos_funit(stats.bytes_head) << "B (" << stats.bytes_head
-            << ") headers (space savings " << header_space_savings * 100
-            << "%), " << util::utos_funit(stats.bytes_body) << "B ("
-            << stats.bytes_body << R"() data
-                     min         max         mean         sd        +/- sd
-time for request: )"
-            << std::setw(10) << util::format_duration(ts.request.min) << "  "
-            << std::setw(10) << util::format_duration(ts.request.max) << "  "
-            << std::setw(10) << util::format_duration(ts.request.mean) << "  "
-            << std::setw(10) << util::format_duration(ts.request.sd)
-            << std::setw(9) << util::dtos(ts.request.within_sd) << "%"
-            << "\ntime for connect: " << std::setw(10)
-            << util::format_duration(ts.connect.min) << "  " << std::setw(10)
-            << util::format_duration(ts.connect.max) << "  " << std::setw(10)
-            << util::format_duration(ts.connect.mean) << "  " << std::setw(10)
-            << util::format_duration(ts.connect.sd) << std::setw(9)
-            << util::dtos(ts.connect.within_sd) << "%"
-            << "\ntime to 1st byte: " << std::setw(10)
-            << util::format_duration(ts.ttfb.min) << "  " << std::setw(10)
-            << util::format_duration(ts.ttfb.max) << "  " << std::setw(10)
-            << util::format_duration(ts.ttfb.mean) << "  " << std::setw(10)
-            << util::format_duration(ts.ttfb.sd) << std::setw(9)
-            << util::dtos(ts.ttfb.within_sd) << "%"
-            << "\nreq/s           : " << std::setw(10) << ts.rps.min << "  "
-            << std::setw(10) << ts.rps.max << "  " << std::setw(10)
-            << ts.rps.mean << "  " << std::setw(10) << ts.rps.sd << std::setw(9)
-            << util::dtos(ts.rps.within_sd) << "%" << std::endl;
+//  std::cout << std::fixed << std::setprecision(2) << R"(
+//finished in )"
+//            << util::format_duration(duration) << ", " << rps << " req/s, "
+//            << util::utos_funit(bps) << R"(B/s
+//requests: )" << stats.req_todo
+//            << " total, " << stats.req_started << " started, " << stats.req_done
+//            << " done, " << stats.req_status_success << " succeeded, "
+//            << stats.req_failed << " failed, " << stats.req_error
+//            << " errored, " << stats.req_timedout << R"( timeout
+//status codes: )"
+//            << stats.status[2] << " 2xx, " << stats.status[3] << " 3xx, "
+//            << stats.status[4] << " 4xx, " << stats.status[5] << R"( 5xx
+//traffic: )" << util::utos_funit(stats.bytes_total)
+//            << "B (" << stats.bytes_total << ") total, "
+//            << util::utos_funit(stats.bytes_head) << "B (" << stats.bytes_head
+//            << ") headers (space savings " << header_space_savings * 100
+//            << "%), " << util::utos_funit(stats.bytes_body) << "B ("
+//            << stats.bytes_body << R"() data
+//                     min         max         mean         sd        +/- sd
+//time for request: )"
+//            << std::setw(10) << util::format_duration(ts.request.min) << "  "
+//            << std::setw(10) << util::format_duration(ts.request.max) << "  "
+//            << std::setw(10) << util::format_duration(ts.request.mean) << "  "
+//            << std::setw(10) << util::format_duration(ts.request.sd)
+//            << std::setw(9) << util::dtos(ts.request.within_sd) << "%"
+//            << "\ntime for connect: " << std::setw(10)
+//            << util::format_duration(ts.connect.min) << "  " << std::setw(10)
+//            << util::format_duration(ts.connect.max) << "  " << std::setw(10)
+//            << util::format_duration(ts.connect.mean) << "  " << std::setw(10)
+//            << util::format_duration(ts.connect.sd) << std::setw(9)
+//            << util::dtos(ts.connect.within_sd) << "%"
+//            << "\ntime to 1st byte: " << std::setw(10)
+//            << util::format_duration(ts.ttfb.min) << "  " << std::setw(10)
+//            << util::format_duration(ts.ttfb.max) << "  " << std::setw(10)
+//            << util::format_duration(ts.ttfb.mean) << "  " << std::setw(10)
+//            << util::format_duration(ts.ttfb.sd) << std::setw(9)
+//            << util::dtos(ts.ttfb.within_sd) << "%"
+//            << "\nreq/s           : " << std::setw(10) << ts.rps.min << "  "
+//            << std::setw(10) << ts.rps.max << "  " << std::setw(10)
+//            << ts.rps.mean << "  " << std::setw(10) << ts.rps.sd << std::setw(9)
+//            << util::dtos(ts.rps.within_sd) << "%" << std::endl;
+
+
+  std::cout
+    << "Running " << size_t(duration.count() / 1000000) << "s test @ " << argv[argc-1] << "\n"
+    << "  " << config.nthreads << " threads and " << config.nclients << " connections\n"
+    << "  Thread Stats   Avg      Stdev     Max   +/- Stdev\n"
+    << "    Latency   " << std::setprecision(2) << std::setw(6) << ts.request.mean * 1000 << "ms  " << std::setprecision(2) << std::setw(6) << ts.request.sd * 1000 << "ms " << std::setprecision(2) << std::setw(6) << ts.request.max * 1000 << "ms    0.00%\n"
+    << "    Req/Sec   " << std::setprecision(2) << std::setw(6) << ts.rps.mean << "    " << std::setprecision(2) << std::setw(6) << ts.rps.sd << "   " << std::setprecision(2) << std::setw(6) << ts.rps.max << "      0.00%\n"
+    << "  " << stats.req_started << " requests in " << util::format_duration(duration) << ", " << double(stats.bytes_total)/1000 << "KB read\n";
+    auto error_count = stats.status[4] + stats.status[5];
+    if(error_count)
+      std::cout << "  Non-2xx or 3xx responses: " << error_count << std::endl;
+    std::cout
+      << "Requests/sec:  " << std::setprecision(2) << std::setw(8) << rps << '\n'
+      << "Transfer/sec:  " << std::setprecision(2) << std::setw(8) << double(bps)/1000 << "KB" << '\n'
+    ;
 
   SSL_CTX_free(ssl_ctx);
-
   return 0;
 }
 
