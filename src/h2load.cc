@@ -690,6 +690,7 @@ void Client::on_status_code(int32_t stream_id, uint16_t status) {
     return;
   }
   auto &stream = (*itr).second;
+  stream.req_stat.status_code = status;
 
   if (status >= 200 && status < 300) {
     ++worker->stats.status[2];
@@ -1674,6 +1675,8 @@ Options:
               URIs, if present,  are ignored.  Those in  the first URI
               are used solely.  Definition of a base URI overrides all
               scheme, host or port values.
+  -o, --output-file=<PATH>
+              Optional path of a file to dump CSV stats to.
   -m, --max-concurrent-streams=<N>
               Max  concurrent  streams  to issue  per  session.   When
               http/1.1  is used,  this  specifies the  number of  HTTP
@@ -1841,6 +1844,7 @@ int main(int argc, char **argv) {
         {"window-bits", required_argument, nullptr, 'w'},
         {"connection-window-bits", required_argument, nullptr, 'W'},
         {"input-file", required_argument, nullptr, 'i'},
+        {"output-file", required_argument, nullptr, 'o'},
         {"header", required_argument, nullptr, 'H'},
         {"no-tls-proto", required_argument, nullptr, 'p'},
         {"verbose", no_argument, nullptr, 'v'},
@@ -1859,7 +1863,7 @@ int main(int argc, char **argv) {
         {"encoder-header-table-size", required_argument, &flag, 8},
         {nullptr, 0, nullptr, 0}};
     int option_index = 0;
-    auto c = getopt_long(argc, argv, "hvW:c:d:m:n:p:t:w:H:i:r:T:N:B:",
+    auto c = getopt_long(argc, argv, "hvW:c:d:m:n:p:t:w:H:i:o:r:T:N:B:",
                          long_options, &option_index);
     if (c == -1) {
       break;
@@ -1933,6 +1937,9 @@ int main(int argc, char **argv) {
     }
     case 'i':
       config.ifile = optarg;
+      break;
+    case 'o':
+      config.ofile = optarg;
       break;
     case 'p': {
       auto proto = StringRef{optarg};
@@ -2593,6 +2600,20 @@ time for request: )"
             << util::dtos(ts.rps.within_sd) << "%" << std::endl;
 
   SSL_CTX_free(ssl_ctx);
+
+  if(!config.ofile.empty()){
+    auto ofs = std::ofstream(config.ofile);
+    auto label = (*method_it).value + " " + argv[argc-1];
+    ofs << "timeStamp,elapsed,label,responseCode,success\n";
+    for (const auto &w : workers) {
+      for (const auto& s : w->stats.req_stats)
+      {
+        auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(s.request_time - start);
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s.stream_close_time - s.request_time);
+        ofs << timestamp.count() << ',' << elapsed.count() << ',' << label << ',' << s.status_code << ',' << s.completed << std::endl;
+      }
+    }
+  }
 
   return 0;
 }
