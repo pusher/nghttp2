@@ -261,6 +261,7 @@ struct Worker {
          size_t rate, size_t max_samples, Config *config);
   ~Worker();
   Worker(Worker &&o) = default;
+  void connect();
   void run();
   void sample_req_stat(RequestStat *req_stat);
   void sample_client_stat(ClientStat *cstat);

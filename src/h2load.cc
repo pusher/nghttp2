@@ -1200,7 +1200,7 @@ Worker::~Worker() {
   ev_loop_destroy(loop);
 }
 
-void Worker::run() {
+void Worker::connect() {
   if (!config->is_rate_mode()) {
     for (size_t i = 0; i < nclients; ++i) {
       auto req_todo = nreqs_per_client;
@@ -1222,6 +1222,9 @@ void Worker::run() {
     // call callback so that we don't waste the first rate_period
     rate_period_timeout_w_cb(loop, &timeout_watcher, 0);
   }
+}
+
+void Worker::run() {
   ev_run(loop, 0);
 }
 
@@ -2240,6 +2243,7 @@ int main(int argc, char **argv) {
               << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
     exit(EXIT_FAILURE);
   }
+  auto ssl_ctx_free = defer(SSL_CTX_free, ssl_ctx);
 
   auto ssl_opts = (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) |
                   SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION |
@@ -2435,6 +2439,7 @@ int main(int argc, char **argv) {
   std::mutex mu;
   std::condition_variable cv;
   auto ready = false;
+  auto to_connect = config.nthreads;
 
   std::vector<std::future<void>> futures;
   for (size_t i = 0; i < config.nthreads; ++i) {
@@ -2468,10 +2473,17 @@ int main(int argc, char **argv) {
                                     max_samples_per_thread));
     auto &worker = workers.back();
     futures.push_back(
-        std::async(std::launch::async, [&worker, &mu, &cv, &ready]() {
+        std::async(std::launch::async, [&worker, &mu, &cv, &ready, &to_connect]() {
           {
             std::unique_lock<std::mutex> ulk(mu);
             cv.wait(ulk, [&ready] { return ready; });
+          }
+          worker->connect();
+
+          {
+            std::unique_lock<std::mutex> ulk(mu);
+            --to_connect;
+            cv.wait(ulk, [&to_connect] { return to_connect == 0; });
           }
           worker->run();
         }));
@@ -2500,6 +2512,7 @@ int main(int argc, char **argv) {
 
   auto start = std::chrono::steady_clock::now();
 
+  workers.back()->connect();
   workers.back()->run();
 #endif // NOTHREADS
 
@@ -2599,15 +2612,12 @@ time for request: )"
             << ts.rps.mean << "  " << std::setw(10) << ts.rps.sd << std::setw(9)
             << util::dtos(ts.rps.within_sd) << "%" << std::endl;
 
-  SSL_CTX_free(ssl_ctx);
-
   if(!config.ofile.empty()){
     auto ofs = std::ofstream(config.ofile);
     auto label = (*method_it).value + " " + argv[argc-1];
     ofs << "timeStamp,elapsed,label,responseCode,success,URL\n";
     for (const auto &w : workers) {
-      for (const auto& s : w->stats.req_stats)
-      {
+      for (const auto& s : w->stats.req_stats) {
         auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(s.request_time - start);
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s.stream_close_time - s.request_time);
         auto success = s.completed ? "true" : "false";
