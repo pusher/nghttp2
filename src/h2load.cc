@@ -2612,14 +2612,17 @@ time for request: )"
             << ts.rps.mean << "  " << std::setw(10) << ts.rps.sd << std::setw(9)
             << util::dtos(ts.rps.within_sd) << "%" << std::endl;
 
+
+  using f_milliseconds_t = std::chrono::duration<double, std::milli>;
+
   if(!config.ofile.empty()){
     auto ofs = std::ofstream(config.ofile);
     auto label = (*method_it).value + " " + argv[argc-1];
     ofs << "timeStamp,elapsed,label,responseCode,success,URL\n";
     for (const auto &w : workers) {
       for (const auto& s : w->stats.req_stats) {
-        auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(s.request_time - start);
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(s.stream_close_time - s.request_time);
+        auto timestamp = std::chrono::duration_cast<f_milliseconds_t>(s.request_time - start);
+        auto elapsed = std::chrono::duration_cast<f_milliseconds_t>(s.stream_close_time - s.request_time);
         auto success = s.completed ? "true" : "false";
         ofs << timestamp.count() << ',' << elapsed.count() << ',' << label << ',' << s.status_code << ',' << success << ',' << argv[argc-1] << std::endl;
       }
