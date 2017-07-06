@@ -1867,7 +1867,7 @@ int main(int argc, char **argv) {
         {nullptr, 0, nullptr, 0}};
     int option_index = 0;
     auto c =
-        getopt_long(argc, argv, "hvW:c:d:m:n:p:t:w:H:i:r:T:N:B:", long_options,
+        getopt_long(argc, argv, "hvW:c:d:m:n:p:t:w:H:i:o:r:T:N:B:", long_options,
                     &option_index);
     if (c == -1) {
       break;
