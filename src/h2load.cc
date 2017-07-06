@@ -59,7 +59,7 @@
 #ifdef HAVE_SPDYLAY
 #include "h2load_spdy_session.h"
 #endif // HAVE_SPDYLAY
-#include "ssl.h"
+#include "tls.h"
 #include "http2.h"
 #include "util.h"
 #include "template.h"
@@ -79,7 +79,7 @@ bool recorded(const std::chrono::steady_clock::time_point &t) {
 } // namespace
 
 Config::Config()
-    : ciphers(ssl::DEFAULT_CIPHER_LIST),
+    : ciphers(tls::DEFAULT_CIPHER_LIST),
       data_length(-1),
       addrs(nullptr),
       nreqs(1),
@@ -625,7 +625,7 @@ void Client::report_tls_info() {
   if (worker->id == 0 && !worker->tls_info_report_done) {
     worker->tls_info_report_done = true;
     auto cipher = SSL_get_current_cipher(ssl);
-    std::cout << "TLS Protocol: " << ssl::get_tls_protocol(ssl) << "\n"
+    std::cout << "TLS Protocol: " << tls::get_tls_protocol(ssl) << "\n"
               << "Cipher: " << SSL_CIPHER_get_name(cipher) << std::endl;
     print_server_tmp_key(ssl);
   }
@@ -1828,10 +1828,10 @@ Options:
 } // namespace
 
 int main(int argc, char **argv) {
-  ssl::libssl_init();
+  tls::libssl_init();
 
 #ifndef NOTHREADS
-  ssl::LibsslGlobalLock lock;
+  tls::LibsslGlobalLock lock;
 #endif // NOTHREADS
 
   std::string datafile;
@@ -1866,18 +1866,9 @@ int main(int argc, char **argv) {
         {"encoder-header-table-size", required_argument, &flag, 8},
         {nullptr, 0, nullptr, 0}};
     int option_index = 0;
-    auto c = getopt_long(argc, argv, "hvW:c:d:m:n:p:t:w:H:i:o:r:T:N:B:",
-                         long_options, &option_index);
-    if (c == -1) {
-      break;
-    }
-    switch (c) {
-    case 'n':
-      config.nreqs = strtoul(optarg, nullptr, 10);
       nreqs_set_manually = true;
       break;
     case 'c':
-      config.nclients = strtoul(optarg, nullptr, 10);
       break;
     case 'd':
       datafile = optarg;
@@ -2253,9 +2244,9 @@ int main(int argc, char **argv) {
   SSL_CTX_set_mode(ssl_ctx, SSL_MODE_AUTO_RETRY);
   SSL_CTX_set_mode(ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
 
-  if (nghttp2::ssl::ssl_ctx_set_proto_versions(
-          ssl_ctx, nghttp2::ssl::NGHTTP2_TLS_MIN_VERSION,
-          nghttp2::ssl::NGHTTP2_TLS_MAX_VERSION) != 0) {
+  if (nghttp2::tls::ssl_ctx_set_proto_versions(
+          ssl_ctx, nghttp2::tls::NGHTTP2_TLS_MIN_VERSION,
+          nghttp2::tls::NGHTTP2_TLS_MAX_VERSION) != 0) {
     std::cerr << "Could not set TLS versions" << std::endl;
     exit(EXIT_FAILURE);
   }

@@ -150,8 +150,8 @@ int htp_hdr_keycb(http_parser *htp, const char *data, size_t len) {
     } else {
       if (req.fs.num_fields() >= httpconf.max_request_header_fields) {
         if (LOG_ENABLED(INFO)) {
-          ULOG(INFO, upstream) << "Too many header field num="
-                               << req.fs.num_fields() + 1;
+          ULOG(INFO, upstream)
+              << "Too many header field num=" << req.fs.num_fields() + 1;
         }
         downstream->set_request_state(
             Downstream::HTTP1_REQUEST_HEADER_TOO_LARGE);
@@ -166,8 +166,8 @@ int htp_hdr_keycb(http_parser *htp, const char *data, size_t len) {
     } else {
       if (req.fs.num_fields() >= httpconf.max_request_header_fields) {
         if (LOG_ENABLED(INFO)) {
-          ULOG(INFO, upstream) << "Too many header field num="
-                               << req.fs.num_fields() + 1;
+          ULOG(INFO, upstream)
+              << "Too many header field num=" << req.fs.num_fields() + 1;
         }
         return -1;
       }
@@ -631,7 +631,7 @@ int HttpsUpstream::on_read() {
       status_code = downstream->response().http_status;
       if (status_code == 0) {
         if (downstream->get_request_state() == Downstream::CONNECT_FAIL) {
-          status_code = 503;
+          status_code = 502;
         } else if (downstream->get_request_state() ==
                    Downstream::HTTP1_REQUEST_HEADER_TOO_LARGE) {
           status_code = 431;
@@ -1059,9 +1059,10 @@ int HttpsUpstream::on_downstream_header_complete(Downstream *downstream) {
         get_client_handler()->get_upstream_scheme());
   }
 
-  http2::build_http1_headers_from_headers(buf, resp.fs.headers());
-
   if (downstream->get_non_final_response()) {
+    http2::build_http1_headers_from_headers(buf, resp.fs.headers(),
+                                            http2::HDOP_STRIP_ALL);
+
     buf->append("\r\n");
 
     if (LOG_ENABLED(INFO)) {
@@ -1072,6 +1073,9 @@ int HttpsUpstream::on_downstream_header_complete(Downstream *downstream) {
 
     return 0;
   }
+
+  http2::build_http1_headers_from_headers(
+      buf, resp.fs.headers(), http2::HDOP_STRIP_ALL & ~http2::HDOP_STRIP_VIA);
 
   auto worker = handler_->get_worker();
 
@@ -1205,7 +1209,8 @@ int HttpsUpstream::on_downstream_body_complete(Downstream *downstream) {
       output->append("0\r\n\r\n");
     } else {
       output->append("0\r\n");
-      http2::build_http1_headers_from_headers(output, trailers);
+      http2::build_http1_headers_from_headers(output, trailers,
+                                              http2::HDOP_STRIP_ALL);
       output->append("\r\n");
     }
   }
@@ -1310,7 +1315,7 @@ int HttpsUpstream::on_downstream_reset(Downstream *downstream, bool no_retry) {
       // We have got all response body already.  Send it off.
       return 0;
     case Downstream::INITIAL:
-      if (on_downstream_abort_request(downstream_.get(), 503) != 0) {
+      if (on_downstream_abort_request(downstream_.get(), 502) != 0) {
         return -1;
       }
       return 0;
@@ -1348,7 +1353,7 @@ fail:
   if (rv == SHRPX_ERR_TLS_REQUIRED) {
     rv = on_downstream_abort_request_with_https_redirect(downstream);
   } else {
-    rv = on_downstream_abort_request(downstream_.get(), 503);
+    rv = on_downstream_abort_request(downstream_.get(), 502);
   }
   if (rv != 0) {
     return -1;

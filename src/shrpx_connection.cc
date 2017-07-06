@@ -33,7 +33,7 @@
 
 #include <openssl/err.h>
 
-#include "shrpx_ssl.h"
+#include "shrpx_tls.h"
 #include "shrpx_memcached_request.h"
 #include "shrpx_log.h"
 #include "memchunk.h"
@@ -123,6 +123,7 @@ void Connection::disconnect() {
     tls.handshake_state = 0;
     tls.initial_handshake_done = false;
     tls.reneg_started = false;
+    tls.sct_requested = false;
   }
 
   if (fd != -1) {
@@ -360,7 +361,7 @@ int Connection::tls_handshake() {
     auto ssl_opts = SSL_get_options(tls.ssl);
     SSL_free(tls.ssl);
 
-    auto ssl = ssl::create_ssl(ssl_ctx);
+    auto ssl = tls::create_ssl(ssl_ctx);
     if (!ssl) {
       return -1;
     }
@@ -379,6 +380,8 @@ int Connection::tls_handshake() {
     tls.handshake_state = TLS_CONN_NORMAL;
     break;
   }
+
+  ERR_clear_error();
 
   auto rv = SSL_do_handshake(tls.ssl);
 
@@ -502,8 +505,8 @@ int Connection::write_tls_pending_handshake() {
 
   if (LOG_ENABLED(INFO)) {
     LOG(INFO) << "SSL/TLS handshake completed";
-    nghttp2::ssl::TLSSessionInfo tls_info{};
-    if (nghttp2::ssl::get_tls_session_info(&tls_info, tls.ssl)) {
+    nghttp2::tls::TLSSessionInfo tls_info{};
+    if (nghttp2::tls::get_tls_session_info(&tls_info, tls.ssl)) {
       LOG(INFO) << "cipher=" << tls_info.cipher
                 << " protocol=" << tls_info.protocol
                 << " resumption=" << (tls_info.session_reused ? "yes" : "no")
@@ -530,7 +533,7 @@ int Connection::check_http2_requirement() {
       !util::check_h2_is_selected(StringRef{next_proto, next_proto_len})) {
     return 0;
   }
-  if (!nghttp2::ssl::check_http2_tls_version(tls.ssl)) {
+  if (!nghttp2::tls::check_http2_tls_version(tls.ssl)) {
     if (LOG_ENABLED(INFO)) {
       LOG(INFO) << "TLSv1.2 was not negotiated.  HTTP/2 must not be used.";
     }
@@ -545,7 +548,7 @@ int Connection::check_http2_requirement() {
   }
 
   if (check_black_list &&
-      nghttp2::ssl::check_http2_cipher_black_list(tls.ssl)) {
+      nghttp2::tls::check_http2_cipher_black_list(tls.ssl)) {
     if (LOG_ENABLED(INFO)) {
       LOG(INFO) << "The negotiated cipher suite is in HTTP/2 cipher suite "
                    "black list.  HTTP/2 must not be used.";
@@ -614,6 +617,8 @@ ssize_t Connection::write_tls(const void *data, size_t len) {
 
   tls.last_write_idle = -1.;
 
+  ERR_clear_error();
+
   auto rv = SSL_write(tls.ssl, data, len);
 
   if (rv <= 0) {
@@ -665,6 +670,8 @@ ssize_t Connection::read_tls(void *data, size_t len) {
     len = tls.last_readlen;
     tls.last_readlen = 0;
   }
+
+  ERR_clear_error();
 
   auto rv = SSL_read(tls.ssl, data, len);
 
@@ -800,11 +807,25 @@ int Connection::get_tcp_hint(TCPHint *hint) const {
                            : 0;
 
   // http://www.slideshare.net/kazuho/programming-tcp-for-responsiveness
+
+  // TODO 29 (5 (header) + 8 (explicit nonce) + 16 (tag)) is TLS
+  // overhead for AES-GCM.  For CHACHA20_POLY1305, it is 21 since it
+  // does not need 8 bytes explicit nonce.
   //
-  // TODO 29 (5 + 8 + 16) is TLS overhead for AES-GCM.  For
-  // CHACHA20_POLY1305, it is 21 since it does not need 8 bytes
-  // explicit nonce.
-  auto writable_size = (avail_packets + 2) * (tcp_info.tcpi_snd_mss - 29);
+  // For TLSv1.3, AES-GCM and CHACHA20_POLY1305 overhead are now 22
+  // bytes (5 (header) + 1 (ContentType) + 16 (tag)).
+  size_t tls_overhead;
+#ifdef TLS1_3_VERSION
+  if (SSL_version(tls.ssl) == TLS1_3_VERSION) {
+    tls_overhead = 22;
+  } else
+#endif // TLS1_3_VERSION
+  {
+    tls_overhead = 29;
+  }
+
+  auto writable_size =
+      (avail_packets + 2) * (tcp_info.tcpi_snd_mss - tls_overhead);
   if (writable_size > 16_k) {
     writable_size = writable_size & ~(16_k - 1);
   } else {
@@ -812,7 +833,7 @@ int Connection::get_tcp_hint(TCPHint *hint) const {
       LOG(INFO) << "writable_size is too small: " << writable_size;
     }
     // TODO is this required?
-    writable_size = std::max(writable_size, static_cast<uint32_t>(536 * 2));
+    writable_size = std::max(writable_size, static_cast<size_t>(536 * 2));
   }
 
   // if (LOG_ENABLED(INFO)) {
