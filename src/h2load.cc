@@ -1866,9 +1866,19 @@ int main(int argc, char **argv) {
         {"encoder-header-table-size", required_argument, &flag, 8},
         {nullptr, 0, nullptr, 0}};
     int option_index = 0;
+    auto c =
+        getopt_long(argc, argv, "hvW:c:d:m:n:p:t:w:H:i:r:T:N:B:", long_options,
+                    &option_index);
+    if (c == -1) {
+      break;
+    }
+    switch (c) {
+    case 'n':
+      config.nreqs = strtoul(optarg, nullptr, 10);
       nreqs_set_manually = true;
       break;
     case 'c':
+      config.nclients = strtoul(optarg, nullptr, 10);
       break;
     case 'd':
       datafile = optarg;
